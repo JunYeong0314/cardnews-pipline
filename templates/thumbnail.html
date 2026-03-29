@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
+
+  body {
+    width: 1080px;
+    height: 1080px;
+    overflow: hidden;
+    font-family: 'Noto Sans KR', sans-serif;
+  }
+
+  .card {
+    position: relative;
+    width: 1080px;
+    height: 1080px;
+    background-color: #1a1a2e;
+    background-image: url('{{BG_IMAGE}}');
+    background-size: cover;
+    background-position: center;
+  }
+
+  /* 어두운 오버레이 */
+  .overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0.1) 0%,
+      rgba(0, 0, 0, 0.3) 40%,
+      rgba(0, 0, 0, 0.75) 100%
+    );
+  }
+
+  .content {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 60px;
+    z-index: 1;
+  }
+
+  .brand {
+    font-size: 22px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.9);
+    letter-spacing: 3px;
+  }
+
+  .bottom {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .badge {
+    display: inline-block;
+    background: {{ACCENT}};
+    color: white;
+    font-size: 20px;
+    font-weight: 700;
+    padding: 8px 24px;
+    border-radius: 8px;
+    width: fit-content;
+    letter-spacing: 1px;
+  }
+
+  .title {
+    font-size: 72px;
+    font-weight: 900;
+    color: white;
+    line-height: 1.2;
+    text-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  }
+
+  .subtitle {
+    font-size: 32px;
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.8);
+    line-height: 1.4;
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="overlay"></div>
+    <div class="content">
+      <div class="brand">{{BRAND_NAME}}</div>
+      <div class="bottom">
+        <div class="badge">{{BADGE}}</div>
+        <div class="title">{{TITLE}}</div>
+        <div class="subtitle">{{SUBTITLE}}</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

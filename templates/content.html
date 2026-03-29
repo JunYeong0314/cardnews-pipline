@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
+
+  body {
+    width: 1080px;
+    height: 1080px;
+    overflow: hidden;
+    font-family: 'Noto Sans KR', sans-serif;
+  }
+
+  .card {
+    position: relative;
+    width: 1080px;
+    height: 1080px;
+    background: #ffffff;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* 상단 컬러 바 */
+  .accent-bar {
+    width: 100%;
+    height: 8px;
+    background: {{ACCENT}};
+  }
+
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 40px 60px 0;
+  }
+
+  .brand {
+    font-size: 20px;
+    font-weight: 700;
+    color: {{ACCENT}};
+    letter-spacing: 3px;
+  }
+
+  .slide-num {
+    font-size: 18px;
+    font-weight: 400;
+    color: #aaa;
+    letter-spacing: 1px;
+  }
+
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 0 80px;
+    gap: 40px;
+  }
+
+  .title {
+    font-size: 56px;
+    font-weight: 900;
+    color: #1a1a2e;
+    line-height: 1.3;
+  }
+
+  .divider {
+    width: 60px;
+    height: 4px;
+    background: {{ACCENT}};
+    border-radius: 2px;
+  }
+
+  .body {
+    font-size: 34px;
+    font-weight: 400;
+    color: #555;
+    line-height: 1.6;
+  }
+
+  .footer {
+    padding: 0 80px 60px;
+  }
+
+  .cta {
+    display: inline-block;
+    background: {{ACCENT}};
+    color: white;
+    font-size: 24px;
+    font-weight: 700;
+    padding: 16px 40px;
+    border-radius: 50px;
+    letter-spacing: 1px;
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="accent-bar"></div>
+    <div class="header">
+      <div class="brand">{{BRAND_NAME}}</div>
+      <div class="slide-num">{{SLIDE_NUM}}</div>
+    </div>
+    <div class="main">
+      <div class="title">{{TITLE}}</div>
+      <div class="divider"></div>
+      <div class="body">{{BODY}}</div>
+    </div>
+    <div class="footer">
+      <div class="cta">{{CTA}}</div>
+    </div>
+  </div>
+</body>
+</html>
