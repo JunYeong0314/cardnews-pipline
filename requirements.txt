@@ -1,0 +1,8 @@
+anthropic
+fal-client
+feedparser
+httpx
+pillow
+playwright
+pytrends
+python-dotenv

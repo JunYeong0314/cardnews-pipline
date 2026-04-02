@@ -20,6 +20,8 @@ BRAND = {
     "accent": "#2D6AFF",
 }
 
+PROMO_TEXT = "AI 메모 앱은 디지털페이지"
+
 CARD_WIDTH = 1080
 CARD_HEIGHT = 1350
 PREVIEW_SCALE = 0.5
@@ -163,6 +165,22 @@ def _build_thumbnail_html(slide: dict, bg_b64: str) -> str:
     opacity: 0.28;
     pointer-events: none;
   }}
+  .promo-strip {{
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #7553C4;
+    color: #ffffff;
+    font-size: 30px;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    z-index: 3;
+  }}
   .content {{
     position: absolute;
     inset: 0;
@@ -179,7 +197,7 @@ def _build_thumbnail_html(slide: dict, bg_b64: str) -> str:
     align-items: center;
     justify-content: center;
     gap: 24px;
-    width: min(820px, 100%);
+    width: min(920px, 100%);
     padding: 0;
   }}
   .bottom {{
@@ -224,7 +242,8 @@ def _build_thumbnail_html(slide: dict, bg_b64: str) -> str:
     overflow: hidden;
     line-height: 1.38;
     word-break: keep-all;
-    max-width: 92%;
+    max-width: 100%;
+    text-wrap: balance;
   }}
   .subtitle {{
     display: none;
@@ -254,6 +273,7 @@ def _build_thumbnail_html(slide: dict, bg_b64: str) -> str:
 </head>
 <body>
   <div class="card">
+    <div class="promo-strip">{escape(PROMO_TEXT)}</div>
     <div class="overlay"></div>
     <div class="safe-shadow"></div>
     <div class="grain"></div>
@@ -331,6 +351,22 @@ def _build_content_html(slide: dict, index: int, total: int, bg_b64: str) -> str
       rgba(0,0,0,0.54) 100%
     );
   }}
+  .promo-strip {{
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #7553C4;
+    color: #ffffff;
+    font-size: 30px;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    z-index: 3;
+  }}
   .content {{
     position: absolute;
     inset: 0;
@@ -360,15 +396,10 @@ def _build_content_html(slide: dict, index: int, total: int, bg_b64: str) -> str
     word-break: keep-all;
   }}
   .body {{
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 3;
-    overflow: hidden;
     font-size: 28px;
     font-weight: 500;
     color: rgba(255,255,255,0.96);
     line-height: 1.56;
-    min-height: calc(1.56em * 2);
     max-width: 92%;
     text-shadow:
       0 4px 14px rgba(0,0,0,0.5),
@@ -384,6 +415,7 @@ def _build_content_html(slide: dict, index: int, total: int, bg_b64: str) -> str
 </head>
 <body>
   <div class="card">
+    <div class="promo-strip">{escape(PROMO_TEXT)}</div>
     <div class="overlay"></div>
     <div class="safe-shadow"></div>
     <div class="content">

@@ -24,9 +24,11 @@ def main() -> None:
     import generator
     import image
     import renderer
+    from image_style_config import get_image_style
 
     output_dir = Path("output/test_content_design")
     output_dir.mkdir(parents=True, exist_ok=True)
+    image_style = get_image_style()
 
     slides = generator._demo_slides(topic)
 
@@ -39,7 +41,7 @@ def main() -> None:
 
         filename = f"slide_{index:02d}.png"
         try:
-            image_path = image.generate_image(prompt, str(output_dir), filename)
+            image_path = image.generate_image(prompt, str(output_dir), filename, image_style=image_style)
         except Exception as exc:
             print(f"image fallback: slide_{index:02d} skipped ({exc})")
             image_path = ""
@@ -49,6 +51,7 @@ def main() -> None:
     preview_path = output_dir / "preview.html"
 
     print(f"topic: {topic}")
+    print(f"image_style: {image_style.get('display_name', image_style.get('style_key', 'default'))}")
     print(f"preview: {preview_path.resolve()}")
     print("files:")
     for path in files:

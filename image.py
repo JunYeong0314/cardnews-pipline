@@ -8,8 +8,10 @@ import base64
 import logging
 import math
 from pathlib import Path
+from typing import Optional
 
 from dotenv import load_dotenv
+from image_style_config import get_image_style
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -22,7 +24,12 @@ FAL_INFERENCE_STEPS = 12
 FAL_ACCELERATION = "none"
 
 
-def generate_image(prompt: str, output_dir: str, filename: str = "bg_image.png") -> str:
+def generate_image(
+    prompt: str,
+    output_dir: str,
+    filename: str = "bg_image.png",
+    image_style: Optional[dict] = None,
+) -> str:
     """배경 이미지를 생성한다. 반환: 파일 경로"""
     fal_key = os.getenv("FAL_KEY")
     if not fal_key:
@@ -32,10 +39,11 @@ def generate_image(prompt: str, output_dir: str, filename: str = "bg_image.png")
     try:
         import fal_client
         os.environ["FAL_KEY"] = fal_key
+        style = image_style or get_image_style()
         result = fal_client.subscribe(
             FAL_IMAGE_MODEL,
             arguments={
-                "prompt": _build_photoreal_prompt(prompt),
+                "prompt": _build_photoreal_prompt(prompt, style),
                 "image_size": {"width": IMAGE_WIDTH, "height": IMAGE_HEIGHT},
                 "num_images": 1,
                 "enable_safety_checker": True,
@@ -58,9 +66,11 @@ def generate_image(prompt: str, output_dir: str, filename: str = "bg_image.png")
         return _create_demo_image(output_dir, filename)
 
 
-def _build_photoreal_prompt(prompt: str) -> str:
+def _build_photoreal_prompt(prompt: str, image_style: Optional[dict] = None) -> str:
     """저비용 모델에서도 실사감을 높이기 위한 공통 프롬프트 보강."""
+    style = image_style or get_image_style()
     visual_direction = _infer_visual_direction(prompt)
+    style_hint = style.get("image_prompt_hint", "").strip()
     prefix = (
         "photorealistic, real camera photo, natural lighting, sharp focus, "
         "real-world textures, authentic details, realistic materials, realistic shadows, "
@@ -88,7 +98,8 @@ def _build_photoreal_prompt(prompt: str) -> str:
         "partially hidden, turned away from the camera, obscured by angle, unreadable, "
         "or completely outside the frame"
     )
-    return f"{prefix}, {visual_direction}, {prompt}, {negative}, {suffix}"
+    style_fragment = f", {style_hint}" if style_hint else ""
+    return f"{prefix}, {visual_direction}{style_fragment}, {prompt}, {negative}, {suffix}"
 
 
 def _infer_visual_direction(prompt: str) -> str:

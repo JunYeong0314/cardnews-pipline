@@ -8,6 +8,7 @@ run.py — 카드뉴스 파이프라인 진입점
 import sys
 import os
 import json
+import shutil
 import logging
 from datetime import datetime
 
@@ -22,6 +23,19 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 logger = logging.getLogger("run")
+
+
+def _build_feed_upload_bundle(output_dir: str, output_files: list, feed_text_path: str) -> str:
+    """인스타 업로드용 PNG와 텍스트를 한 폴더에 모은다."""
+    upload_dir = os.path.join(output_dir, "feed_upload")
+    os.makedirs(upload_dir, exist_ok=True)
+
+    png_files = [path for path in output_files if path.lower().endswith(".png")]
+    for path in png_files:
+        shutil.copy2(path, os.path.join(upload_dir, os.path.basename(path)))
+
+    shutil.copy2(feed_text_path, os.path.join(upload_dir, os.path.basename(feed_text_path)))
+    return upload_dir
 
 
 def main():
@@ -47,15 +61,27 @@ def main():
     logger.info(f"출력 디렉토리: {output_dir}")
 
     # ── Step 2: 슬라이드 콘텐츠 생성 ──
+    from image_style_config import get_image_style
+    image_style = get_image_style()
+    logger.info(
+        f"[Step 2] 이미지 분위기 프리셋: {image_style.get('display_name', image_style.get('style_key', 'default'))}"
+    )
     logger.info("[Step 3] 슬라이드 콘텐츠 생성 중...")
-    from generator import generate_slides
-    slides = generate_slides(topic)
+    from generator import generate_slides, generate_feed_text
+    slides = generate_slides(topic, image_style=image_style)
     logger.info(f"[Step 3] 슬라이드 {len(slides)}장 생성 완료")
 
     # 슬라이드 JSON 저장
     slides_path = os.path.join(output_dir, "slides.json")
     with open(slides_path, "w", encoding="utf-8") as f:
         json.dump(slides, f, ensure_ascii=False, indent=2)
+
+    logger.info("[Step 3] 피드용 평문 텍스트 생성 중...")
+    feed_text = generate_feed_text(topic, slides)
+    feed_text_path = os.path.join(output_dir, "feed_text.txt")
+    with open(feed_text_path, "w", encoding="utf-8") as f:
+        f.write(feed_text)
+    logger.info("[Step 3] 피드용 텍스트 저장 완료: feed_text.txt")
 
     # ── Step 3: 이미지 생성 ──
     logger.info("[Step 4] 슬라이드 이미지 생성 중...")
@@ -69,7 +95,7 @@ def main():
             continue
 
         image_filename = f"slide_{i+1:02d}.png"
-        image_path = generate_image(image_prompt, output_dir, image_filename)
+        image_path = generate_image(image_prompt, output_dir, image_filename, image_style=image_style)
         slide_image_paths.append(image_path)
         logger.info(f"[Step 4] slides[{i}] 이미지 생성 완료: {image_filename}")
 
@@ -77,7 +103,12 @@ def main():
     logger.info("[Step 5] PNG 렌더링 중...")
     from renderer import render_cards
     output_files = render_cards(slides, slide_image_paths, output_dir)
+    output_files.append(feed_text_path)
     logger.info(f"[Step 5] 렌더링 완료: {len(output_files)}개 파일")
+
+    logger.info("[Step 6] 업로드용 폴더 정리 중...")
+    feed_upload_dir = _build_feed_upload_bundle(output_dir, output_files, feed_text_path)
+    logger.info(f"[Step 6] 업로드용 폴더 생성 완료: {feed_upload_dir}")
 
     # ── 결과 요약 ──
     logger.info("=" * 50)
@@ -85,6 +116,7 @@ def main():
     logger.info(f"주제: {topic}")
     logger.info(f"슬라이드: {len(slides)}장")
     logger.info(f"출력 폴더: {output_dir}")
+    logger.info(f"업로드 폴더: {feed_upload_dir}")
     for f in output_files:
         logger.info(f"  → {os.path.basename(f)}")
     logger.info("=" * 50)

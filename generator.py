@@ -6,8 +6,10 @@ import os
 import json
 import logging
 import re
+from typing import Optional
 
 from dotenv import load_dotenv
+from image_style_config import get_image_style
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -15,7 +17,7 @@ GENERATION_MODEL = "claude-haiku-4-5-20251001"
 MAX_GENERATION_ATTEMPTS = 3
 
 
-def generate_slides(topic: str) -> list:
+def generate_slides(topic: str, image_style: Optional[dict] = None) -> list:
     """주제를 받아 슬라이드 JSON 리스트를 반환한다."""
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
@@ -25,7 +27,8 @@ def generate_slides(topic: str) -> list:
     import anthropic
     client = anthropic.Anthropic(api_key=api_key)
 
-    prompt = _build_generation_prompt(topic)
+    style = image_style or get_image_style()
+    prompt = _build_generation_prompt(topic, style)
 
     last_error = None
     for attempt in range(1, MAX_GENERATION_ATTEMPTS + 1):
@@ -53,10 +56,57 @@ def generate_slides(topic: str) -> list:
     logger.error(f"슬라이드 생성 오류: {last_error}")
     return _demo_slides(topic)
 
-def _build_generation_prompt(topic: str) -> str:
+
+def generate_feed_text(topic: str, slides: list) -> str:
+    """슬라이드 내용을 바탕으로 인스타 피드용 평문 텍스트를 생성한다."""
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        logger.info("ANTHROPIC_API_KEY 없음 → 데모 피드 텍스트 반환")
+        return _build_demo_feed_text(topic, slides)
+
+    import anthropic
+    client = anthropic.Anthropic(api_key=api_key)
+    prompt = _build_feed_text_prompt(topic, slides)
+
+    last_error = None
+    for attempt in range(1, MAX_GENERATION_ATTEMPTS + 1):
+        try:
+            response = client.messages.create(
+                model=GENERATION_MODEL,
+                max_tokens=700,
+                temperature=0,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            text = _extract_text_from_response(response)
+            normalized = _normalize_feed_text(text)
+            normalized = _ensure_hashtag_line(normalized, topic, slides)
+            if normalized:
+                logger.info("피드 텍스트 생성 완료")
+                return normalized
+            raise ValueError("빈 피드 텍스트가 생성되었습니다.")
+        except Exception as e:
+            last_error = e
+            preview = text[:240].replace("\n", "\\n") if "text" in locals() else ""
+            if preview:
+                logger.warning(f"피드 텍스트 응답 미리보기: {preview}")
+            logger.warning(f"피드 텍스트 생성 실패 (시도 {attempt}/{MAX_GENERATION_ATTEMPTS}): {e}")
+
+    logger.error(f"피드 텍스트 생성 오류: {last_error}")
+    return _build_demo_feed_text(topic, slides)
+
+
+def _build_generation_prompt(topic: str, image_style: Optional[dict] = None) -> str:
+    style = image_style or get_image_style()
+    style_name = style.get("display_name", "Default")
+    style_hint = style.get("generator_hint", "").strip()
+
     return f"""당신은 인스타그램 카드뉴스 콘텐츠 작성자이다.
 
 주제: {topic}
+
+현재 이미지 분위기 프리셋:
+- 이름: {style_name}
+- 가이드: {style_hint or "기본 실사형 에디토리얼 톤을 유지하라."}
 
 아래 규칙을 반드시 지켜라:
 1. 슬라이드 5장을 만들어라
@@ -64,12 +114,16 @@ def _build_generation_prompt(topic: str) -> str:
    - badge: 카테고리 태그 (예: "자기계발", "건강") 8자 이내
    - title: 메인 제목, 반드시 20자 이내
    - subtitle: 부제목, 25자 이내
-   - subtitle은 반드시 2줄 안에 들어갈 정도로 짧고 간단한 한 문장으로 작성
+   - subtitle은 가능하면 한 줄로 보이도록 아주 짧게 작성하고, 정말 필요할 때만 자연스럽게 2줄까지 허용하라
+   - subtitle은 억지로 2줄 분량을 채우지 말고, 한 줄이면 한 줄로 끝내라
+   - subtitle은 조사나 어미가 어색하게 잘리지 않는 자연스러운 완결형 한 문장으로 작성하라
+   - 한 단어만 다음 줄에 덜렁 떨어질 수 있는 애매한 길이는 피하고 더 짧고 선명하게 압축하라
    - 수식어를 줄이고 핵심만 남겨라
    - image_prompt: 영어로 된 배경 이미지 프롬프트
    - image_prompt는 짧고 간단한 영어 장면 설명만 써라
    - image_prompt는 8~18개 영어 단어 정도의 짧은 프레이즈로 작성하라
    - 스타일, 금지어, 카메라 조건을 길게 반복하지 말고 장면 묘사만 남겨라
+   - image_prompt는 위 이미지 분위기 프리셋의 감성을 반영하되, 장면의 핵심 대상과 맥락이 먼저 읽히게 작성하라
    - image_prompt는 주제를 직접 보여주는 실사형 장면이어야 한다
    - 가능하면 사람 얼굴, 인물 중심 구도, 초상화는 피하고 물건, 공간, 풍경, 책상 위 장면처럼 비인물 피사체를 우선하라
    - 인물이 꼭 필요할 때만 멀리서 작게 포함하고, 얼굴 클로즈업은 절대 피하라
@@ -91,8 +145,9 @@ def _build_generation_prompt(topic: str) -> str:
 3. slides[1~4]는 콘텐츠이다:
    - title: 소제목, 반드시 20자 이내
    - body: 본문
-   - body는 반드시 2줄 이상 3줄 이하가 되도록 작성
-   - 본문은 두 문장으로 작성하고, 카드 안에서 자연스럽게 마무리될 정도의 길이로 설명하라
+   - body는 가능하면 2줄에서 3줄 안에 들어오도록 간결하게 작성하라
+   - 다만 의미 전달에 꼭 필요하면 3줄을 넘어도 되며, 억지로 줄이느라 문장이 부자연스럽거나 정보가 빠지지 않게 하라
+   - 본문은 두 문장을 기본으로 하되, 더 자연스러운 설명을 위해 약간 길어지는 것은 허용한다
    - 문장이 중간에 끊긴 느낌 없이 끝까지 읽었을 때 자연스럽게 마무리되어야 한다
    - 본문은 최대한 영양가 있는 정보로 써라. 뻔한 조언이나 추상적인 자기계발 문구는 피하라
    - 최신 트렌드, 실제 행동 변화, 사회 분위기, 뉴스에서 다룰 법한 포인트를 우선 반영하라
@@ -105,6 +160,7 @@ def _build_generation_prompt(topic: str) -> str:
    - image_prompt는 짧고 간단한 영어 장면 설명만 써라
    - image_prompt는 8~18개 영어 단어 정도의 짧은 프레이즈로 작성하라
    - 스타일, 금지어, 카메라 조건을 길게 반복하지 말고 장면 묘사만 남겨라
+   - image_prompt는 위 이미지 분위기 프리셋의 감성을 반영하되, 장면의 핵심 대상과 맥락이 먼저 읽히게 작성하라
    - image_prompt는 각 슬라이드 내용과 직접 관련된 실사형 장면이어야 한다
    - 실제 뉴스/다큐/라이프스타일 사진처럼 보일 장면 설명이어야 한다
    - 가능하면 사람보다 물건, 장소, 풍경, 환경 디테일을 우선하라
@@ -138,12 +194,97 @@ def _build_generation_prompt(topic: str) -> str:
 ]"""
 
 
+def _build_feed_text_prompt(topic: str, slides: list) -> str:
+    slide_summaries = []
+    for index, slide in enumerate(slides):
+        if slide.get("type") == "thumbnail":
+            slide_summaries.append(
+                f"{index + 1}. 썸네일 - 제목: {slide.get('title', '')} / 부제: {slide.get('subtitle', '')}"
+            )
+            continue
+
+        slide_summaries.append(
+            f"{index + 1}. 본문 - 제목: {slide.get('title', '')} / 내용: {slide.get('body', '')}"
+        )
+
+    slides_text = "\n".join(slide_summaries)
+
+    return f"""당신은 인스타그램 피드 본문을 작성하는 에디터이다.
+
+주제: {topic}
+
+슬라이드 요약:
+{slides_text}
+
+아래 규칙을 반드시 지켜라:
+1. 위 슬라이드 내용을 바탕으로 인스타그램 피드에 들어갈 한국어 평문 텍스트를 작성하라
+2. 슬라이드 내용을 간단하고 이해하기 쉽게 요약하는 글로 작성하라
+3. 카드 한 장 한 장을 기계적으로 나열하지 말고, 전체 내용을 자연스럽게 풀어 쓴 요약문으로 작성하라
+4. 어려운 표현보다 쉽게 읽히는 설명을 우선하라
+5. 과장된 광고 문구, 이모지, 번호 목록, 불릿 목록은 쓰지 마라
+6. 말투는 슬라이드와 어울리는 인스타그램형 해요체로 작성하라
+7. 너무 딱딱한 기사체, 보고서체, 설명서체는 피하고, 사람에게 편하게 설명해주는 말투로 작성하라
+8. 가볍고 친근하지만 정보성은 유지하라. 지나치게 가볍거나 유행어를 남발하지 마라
+9. 광고 카피처럼 과장하지 말고, 저장해두고 다시 읽고 싶은 자연스러운 캡션 톤을 유지하라
+10. 분량은 너무 길지 않게 4~7문장 정도의 짧은 요약문으로 작성하라
+11. 첫 문장만 읽어도 글의 핵심이 바로 이해되게 하라
+12. 한 덩어리로 길게 붙여 쓰지 말고, 읽기 편하도록 문단 단위로 줄바꿈을 넣어라
+13. 전체 텍스트는 보통 2~3개의 짧은 문단으로 나누고, 문단 사이에는 빈 줄을 1줄 넣어라
+14. 각 문단은 보통 1~2문장 정도로 구성해 인스타그램 피드에서 쉽게 읽히게 하라
+15. 줄바꿈은 의미 단위가 자연스럽게 끊기는 지점에서만 넣고, 문장 중간을 억지로 끊지 마라
+16. 본문이 끝난 뒤 마지막 줄에는 해시태그만 따로 모아 한 줄로 출력하라
+17. 해시태그는 슬라이드 내용과 직접 관련된 것 위주로 만들고, 인스타그램에서 노출과 탐색에 도움이 될 만한 넓은 관심사 해시태그도 함께 섞어라
+18. 해시태그 개수는 고정하지 말고 주제에 맞게 자연스럽게 정하라
+19. 해시태그는 모두 `#` 형태로 쓰고, 마지막 줄 한 줄에 공백으로 구분해 나열하라
+20. 마지막 문장은 저장하거나 다시 떠올려볼 만한 포인트로 가볍게 마무리한 뒤, 한 줄 띄우고 해시태그 줄을 붙여라
+21. 마크다운, 설명, 코드펜스 없이 최종 평문만 출력하라"""
+
+
 def _extract_text_from_response(response) -> str:
     parts = []
     for block in response.content:
         if getattr(block, "type", "") == "text":
             parts.append(block.text)
     return "\n".join(parts).strip()
+
+
+def _normalize_feed_text(text: str) -> str:
+    normalized = text.strip()
+    if "```" in normalized:
+        parts = [part.strip() for part in normalized.split("```") if part.strip()]
+        normalized = next((part for part in parts if "\n" in part or len(part) > 20), normalized)
+        if normalized.lower().startswith("text"):
+            normalized = normalized[4:].strip()
+
+    raw_lines = [line.strip() for line in normalized.splitlines()]
+    cleaned_lines = []
+    previous_blank = False
+
+    for line in raw_lines:
+        if not line:
+            if not previous_blank and cleaned_lines:
+                cleaned_lines.append("")
+            previous_blank = True
+            continue
+
+        cleaned_lines.append(line)
+        previous_blank = False
+
+    return "\n".join(cleaned_lines).strip()
+
+
+def _ensure_hashtag_line(text: str, topic: str, slides: list) -> str:
+    normalized = text.strip()
+    if not normalized:
+        return _build_demo_feed_text(topic, slides)
+
+    lines = [line.rstrip() for line in normalized.splitlines()]
+    non_empty_lines = [line for line in lines if line.strip()]
+    if non_empty_lines and non_empty_lines[-1].lstrip().startswith("#"):
+        return normalized
+
+    hashtag_line = _build_demo_hashtags(topic, slides)
+    return f"{normalized}\n\n{hashtag_line}"
 
 
 def _parse_slides_json(text: str) -> list:
@@ -325,6 +466,80 @@ def _demo_slides(topic: str) -> list:
             "image_prompt": f"photorealistic, real camera photo, object-focused or environment-focused scene, natural lighting, no people if possible, no face close-up, no readable text, no readable letters, no readable numbers, no readable signage, no readable logo, no watermark, no poster, no cover design, no illustration, no cgi, no 3d render, any possible text must be naturally blurred or unreadable, clean lower area for Korean caption, closing summary visual for {topic} with calm realistic composition",
         },
     ]
+
+
+def _build_demo_feed_text(topic: str, slides: list) -> str:
+    content_points = []
+    for slide in slides:
+        if slide.get("type") != "content":
+            continue
+
+        title = slide.get("title", "").strip()
+        body = slide.get("body", "").strip()
+        if title and body:
+            content_points.append(f"{title}에서는 {body}")
+        elif body:
+            content_points.append(body)
+
+    if not content_points:
+        return (
+            f"{topic}에 대해 핵심만 편하게 읽히도록 정리했어요.\n"
+            "지금 왜 이 이야기가 많이 보이는지, 우리 일상에서는 어떻게 받아들이면 좋은지 쉽게 풀어봤어요.\n"
+            "가볍게 읽어두고 필요할 때 다시 떠올려봐도 좋아요.\n\n"
+            f"{_build_demo_hashtags(topic, slides)}"
+        )
+
+    summary_lines = [
+        f"{topic}에 대해 핵심만 편하게 읽히도록 정리했어요.",
+        content_points[0],
+    ]
+
+    if len(content_points) > 1:
+        summary_lines.append(content_points[1])
+
+    summary_lines.append("복잡하게 느껴질 수 있는 내용도 이렇게 보면 조금 더 가볍게 흐름이 잡혀요.")
+    summary_lines.append("")
+    summary_lines.append(_build_demo_hashtags(topic, slides))
+    return "\n".join(summary_lines)
+
+
+def _build_demo_hashtags(topic: str, slides: list) -> str:
+    tags = []
+
+    normalized_topic = re.sub(r"[^\w가-힣 ]+", " ", topic).strip()
+    compact_topic = normalized_topic.replace(" ", "")
+    if compact_topic:
+        tags.append(f"#{compact_topic}")
+
+    for slide in slides:
+        if slide.get("type") != "content":
+            continue
+
+        title = re.sub(r"[^\w가-힣 ]+", " ", slide.get("title", "")).strip().replace(" ", "")
+        if title:
+            tags.append(f"#{title}")
+
+    broad_tags = [
+        "#인스타정보",
+        "#카드뉴스",
+        "#트렌드",
+        "#상식",
+        "#스토리",
+        "#콘텐츠",
+        "#인사이트",
+        "#요즘이야기",
+    ]
+    tags.extend(broad_tags)
+
+    unique_tags = []
+    seen = set()
+    for tag in tags:
+        if not tag or tag in seen:
+            continue
+        unique_tags.append(tag)
+        seen.add(tag)
+
+    return " ".join(unique_tags)
 
 
 def _rewrite_to_friendly_style(text: str) -> str:
