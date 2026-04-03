@@ -19,8 +19,14 @@ BRAND = {
     "name": "MYPAGE",
     "accent": "#2D6AFF",
 }
-
 PROMO_TEXT = "AI 메모 앱은 디지털페이지"
+PROMO_BRAND = "digitalpage"
+PROMO_LOGO_PATH = os.path.join(
+    os.path.dirname(__file__),
+    "assets",
+    "branding",
+    "logo.png",
+)
 
 CARD_WIDTH = 1080
 CARD_HEIGHT = 1350
@@ -49,6 +55,9 @@ def render_cards(slides: list, slide_image_paths: list, output_dir: str) -> list
         if slide.get("type") == "thumbnail":
             html = _build_thumbnail_html(slide, bg_b64)
             filename = f"card_{i+1:02d}_thumbnail.html"
+        elif slide.get("type") == "promo":
+            html = _build_promo_html(slide, bg_b64)
+            filename = f"card_{i+1:02d}_promo.html"
         else:
             html = _build_content_html(slide, i, len(slides), bg_b64)
             filename = f"card_{i+1:02d}_content.html"
@@ -91,6 +100,9 @@ def _render_with_playwright(slides, slide_bg_b64, output_dir):
             if slide.get("type") == "thumbnail":
                 html = _build_thumbnail_html(slide, bg_b64)
                 filename = f"card_{i+1:02d}_thumbnail.png"
+            elif slide.get("type") == "promo":
+                html = _build_promo_html(slide, bg_b64)
+                filename = f"card_{i+1:02d}_promo.png"
             else:
                 html = _build_content_html(slide, i, len(slides), bg_b64)
                 filename = f"card_{i+1:02d}_content.png"
@@ -431,6 +443,51 @@ def _build_content_html(slide: dict, index: int, total: int, bg_b64: str) -> str
 </html>"""
 
 
+def _build_promo_html(slide: dict, bg_b64: str) -> str:
+    """마지막 디지털페이지 홍보 카드 HTML"""
+    bg_url = f"data:image/png;base64,{bg_b64}" if bg_b64 else ""
+    title = escape(slide.get("title", "")).replace("\n", "<br>")
+    subtitle = escape(slide.get("subtitle", "")).replace("\n", "<br>")
+    cta = escape(slide.get("cta", ""))
+    template_path = Path(TEMPLATES_DIR) / "promo.html"
+    template = template_path.read_text(encoding="utf-8")
+    logo_src = _file_to_data_url(PROMO_LOGO_PATH)
+    if logo_src:
+        brand_block = (
+            f'<img class="brand-logo" src="{escape(logo_src, quote=True)}" '
+            f'alt="{escape(PROMO_BRAND)}">'
+        )
+    else:
+        brand_block = f'<div class="brand-text">{escape(PROMO_BRAND)}</div>'
+
+    return (
+        template
+        .replace("{{BG_IMAGE}}", escape(bg_url, quote=True))
+        .replace("{{PROMO_BRAND_BLOCK}}", brand_block)
+        .replace("{{TITLE_HTML}}", title)
+        .replace("{{SUBTITLE_HTML}}", subtitle)
+        .replace("{{CTA}}", cta)
+    )
+
+
+def _file_to_data_url(image_path: str) -> str:
+    if not image_path or not os.path.exists(image_path):
+        return ""
+
+    suffix = Path(image_path).suffix.lower()
+    mime = {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".webp": "image/webp",
+        ".svg": "image/svg+xml",
+    }.get(suffix, "application/octet-stream")
+
+    with open(image_path, "rb") as f:
+        encoded = base64.b64encode(f.read()).decode()
+    return f"data:{mime};base64,{encoded}"
+
+
 def _build_preview_page(slides: list, slide_bg_b64: list, output_dir: str) -> str:
     """모든 카드를 한눈에 볼 수 있는 프리뷰 페이지"""
     cards_html = ""
@@ -438,14 +495,19 @@ def _build_preview_page(slides: list, slide_bg_b64: list, output_dir: str) -> st
         bg_b64 = slide_bg_b64[i] if i < len(slide_bg_b64) else ""
         if slide.get("type") == "thumbnail":
             card_html = _build_thumbnail_html(slide, bg_b64)
+            label = "썸네일"
+        elif slide.get("type") == "promo":
+            card_html = _build_promo_html(slide, bg_b64)
+            label = "프로모션"
         else:
             card_html = _build_content_html(slide, i, len(slides), bg_b64)
+            label = f"슬라이드 {i}"
 
         # iframe으로 각 카드를 표시
         escaped_html = escape(card_html, quote=True)
         cards_html += f"""
         <div class="card-wrapper">
-          <div class="card-label">{'썸네일' if slide.get('type') == 'thumbnail' else f'슬라이드 {i}'}</div>
+          <div class="card-label">{label}</div>
           <iframe srcdoc="{escaped_html}"
                   width="{CARD_WIDTH}" height="{CARD_HEIGHT}"
                   style="border:none; transform-origin:0 0; transform:scale({PREVIEW_SCALE});"

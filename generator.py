@@ -44,6 +44,7 @@ def generate_slides(topic: str, image_style: Optional[dict] = None) -> list:
             text = _extract_text_from_response(response)
             slides = _parse_slides_json(text)
             _validate_slides(slides)
+            slides = _append_promo_slide(slides, topic)
             logger.info(f"슬라이드 {len(slides)}장 생성 완료")
             return slides
         except Exception as e:
@@ -197,6 +198,8 @@ def _build_generation_prompt(topic: str, image_style: Optional[dict] = None) -> 
 def _build_feed_text_prompt(topic: str, slides: list) -> str:
     slide_summaries = []
     for index, slide in enumerate(slides):
+        if slide.get("type") == "promo":
+            continue
         if slide.get("type") == "thumbnail":
             slide_summaries.append(
                 f"{index + 1}. 썸네일 - 제목: {slide.get('title', '')} / 부제: {slide.get('subtitle', '')}"
@@ -415,7 +418,7 @@ def _validate_slides(slides: list):
                 logger.warning(f"slides[{i}] title 20자 초과")
             if len(s.get("subtitle", "")) > 25:
                 logger.warning(f"slides[{i}] subtitle 25자 초과")
-        else:
+        elif s.get("type") == "content":
             s["body"] = _rewrite_to_friendly_style(s.get("body", ""))
             if len(s.get("body", "")) < 38:
                 s["body"] = _expand_short_body(s.get("title", ""), s.get("body", ""))
@@ -424,12 +427,15 @@ def _validate_slides(slides: list):
                 logger.warning(f"slides[{i}] title 20자 초과")
             if len(s.get("cta", "")) > 15:
                 logger.warning(f"slides[{i}] cta 15자 초과")
+        elif s.get("type") == "promo":
+            s["subtitle"] = _normalize_sentence_ending(s.get("subtitle", ""))
+            s["cta"] = _normalize_sentence_ending(s.get("cta", ""))
 
 
 def _demo_slides(topic: str) -> list:
     """API 키 없을 때 사용할 데모 슬라이드"""
     short_title = topic or "오늘의 트렌드"
-    return [
+    slides = [
         {
             "type": "thumbnail",
             "badge": "TREND",
@@ -466,6 +472,34 @@ def _demo_slides(topic: str) -> list:
             "image_prompt": f"photorealistic, real camera photo, object-focused or environment-focused scene, natural lighting, no people if possible, no face close-up, no readable text, no readable letters, no readable numbers, no readable signage, no readable logo, no watermark, no poster, no cover design, no illustration, no cgi, no 3d render, any possible text must be naturally blurred or unreadable, clean lower area for Korean caption, closing summary visual for {topic} with calm realistic composition",
         },
     ]
+    return _append_promo_slide(slides, topic)
+
+
+def _append_promo_slide(slides: list, topic: str) -> list:
+    if any(slide.get("type") == "promo" for slide in slides):
+        return slides
+
+    appended = list(slides)
+    appended.append(_build_promo_slide(topic))
+    return appended
+
+
+def _build_promo_slide(topic: str) -> dict:
+    return {
+        "type": "promo",
+        "title": "메모는 남기고\n정리는 AI에게 맡기세요",
+        "subtitle": "중요한 내용만 더 또렷하게 정리되는\n디지털페이지의 마지막 한 장",
+        "cta": "다운로드는 프로필에서 확인",
+        "image_prompt": _build_promo_image_prompt(topic),
+    }
+
+
+def _build_promo_image_prompt(topic: str) -> str:
+    return (
+        f"closing scene related to {topic}, calm resolved final mood, "
+        "natural realistic environment, clean centered composition, "
+        "enough negative space for centered text, feels like a concluding final page"
+    )
 
 
 def _build_demo_feed_text(topic: str, slides: list) -> str:
