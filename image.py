@@ -7,6 +7,7 @@ import os
 import base64
 import logging
 import math
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -71,37 +72,31 @@ def _build_photoreal_prompt(prompt: str, image_style: Optional[dict] = None) -> 
     style = image_style or get_image_style()
     visual_direction = _infer_visual_direction(prompt)
     style_hint = style.get("image_prompt_hint", "").strip()
-    prefix = (
-        "photorealistic, real camera photo, natural lighting, sharp focus, "
-        "real-world textures, authentic details, realistic materials, realistic shadows, "
-        "natural scene matched to the topic, varied composition, cinematic but believable, "
-        "prefer objects, places, landscape, environment, and atmospheric details, "
-        "use people only if truly needed, avoid gesture-focused framing, "
-        "avoid hands or fingers as a subject, "
-        "natural depth of field"
+    short_style = " ".join(style_hint.split()[:5])
+    style_fragment = f", {short_style}" if short_style else ""
+    core = _compress_core_prompt(prompt)
+    return (
+        f"{core}, {visual_direction}{style_fragment}, "
+        "objects only, no people, no hands, no readable text, blur any text"
     )
-    negative = (
-        "no face close-up, no portrait, no direct face, "
-        "no hand close-up, no fingers close-up, no pointing hand, no hand holding food, "
-        "no hand holding objects near camera, no gesture-focused composition, "
-        "no illustration, no painting, no anime, no cartoon, "
-        "no cgi, no 3d render, no artificial plastic skin, "
-        "no readable text, no readable letters, no readable words, "
-        "no readable numbers, no readable typography, no readable signage, "
-        "no watermark, no readable logo, no readable label, no readable brand mark, "
-        "no poster, no cover design, no ad layout, no readable print, "
-        "no readable handwriting, no readable screen UI, no readable chart, no icon, "
-        "no shop interior, no storefront, no restaurant, no cafe menu board, "
-        "no product packaging display, no busy shelf, no wall signs, no framed print"
-    )
-    suffix = (
-        "if any object or surface could contain text, symbols, interface elements, "
-        "numbers, labels, or printed graphics, keep them naturally blurred, out of focus, "
-        "partially hidden, turned away from the camera, obscured by angle, unreadable, "
-        "or completely outside the frame"
-    )
-    style_fragment = f", {style_hint}" if style_hint else ""
-    return f"{prefix}, {visual_direction}{style_fragment}, {prompt}, {negative}, {suffix}"
+
+
+def _compress_core_prompt(prompt: str) -> str:
+    tokens = re.findall(r"[0-9a-zA-Z가-힣_-]+", prompt.lower())
+    banned = {
+        "people", "person", "human", "man", "woman", "boy", "girl",
+        "child", "children", "crowd", "face", "portrait", "selfie",
+        "hand", "hands", "finger", "fingers", "arm", "arms", "palm", "palms",
+        "point", "pointing", "hold", "holding", "touch", "touching",
+        "grab", "grabbing", "pick", "picking", "gesture", "gesturing",
+        "photorealistic", "real", "camera", "photo", "natural", "lighting",
+        "clean", "composition", "scene", "visual", "summary", "practical",
+        "everyday", "about", "using", "with", "caption", "only"
+    }
+    kept = [token for token in tokens if token not in banned][:8]
+    if not kept:
+        kept = ["objects", "environment"]
+    return " ".join(kept)
 
 
 def _infer_visual_direction(prompt: str) -> str:
@@ -123,26 +118,14 @@ def _infer_visual_direction(prompt: str) -> str:
     )
 
     if any(keyword in lowered for keyword in bright_keywords):
-        direction = (
-            "bright airy daylight, fresh morning sunlight, open natural window light, "
-            "clean warm highlights, optimistic everyday atmosphere, natural bright colors, "
-            "avoid moody darkness and heavy shadows"
-        )
+        direction = "bright morning light"
     elif any(keyword in lowered for keyword in dark_keywords):
-        direction = (
-            "subdued realistic light, restrained contrast, serious documentary atmosphere, "
-            "moody but believable lighting"
-        )
+        direction = "serious natural light"
     else:
-        direction = (
-            "balanced natural daylight, realistic contrast, clear but natural atmosphere"
-        )
+        direction = "natural daylight"
 
     if any(keyword in lowered for keyword in breakfast_keywords):
-        direction += (
-            ", home kitchen or dining table at home, morning window light, fresh breakfast scene, "
-            "avoid cafe interior and avoid commercial food display"
-        )
+        direction += ", home kitchen"
 
     return direction
 

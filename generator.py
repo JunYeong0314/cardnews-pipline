@@ -15,6 +15,16 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 GENERATION_MODEL = "claude-haiku-4-5-20251001"
 MAX_GENERATION_ATTEMPTS = 3
+DEFAULT_FEED_HASHTAGS = [
+    "#기록공유",
+    "#공유페이지",
+    "#메모앱",
+    "#기록앱",
+    "#생산성앱",
+    "#앱추천",
+    "#디지털페이지",
+    "#DigitalPage",
+]
 
 
 def generate_slides(topic: str, image_style: Optional[dict] = None) -> list:
@@ -74,16 +84,16 @@ def generate_feed_text(topic: str, slides: list) -> str:
         try:
             response = client.messages.create(
                 model=GENERATION_MODEL,
-                max_tokens=700,
+                max_tokens=160,
                 temperature=0,
                 messages=[{"role": "user", "content": prompt}],
             )
             text = _extract_text_from_response(response)
-            normalized = _normalize_feed_text(text)
-            normalized = _ensure_hashtag_line(normalized, topic, slides)
-            if normalized:
+            summary_line = _normalize_feed_text(text)
+            composed = _compose_feed_text(summary_line, topic, slides)
+            if composed:
                 logger.info("피드 텍스트 생성 완료")
-                return normalized
+                return composed
             raise ValueError("빈 피드 텍스트가 생성되었습니다.")
         except Exception as e:
             last_error = e
@@ -122,26 +132,19 @@ def _build_generation_prompt(topic: str, image_style: Optional[dict] = None) -> 
    - 수식어를 줄이고 핵심만 남겨라
    - image_prompt: 영어로 된 배경 이미지 프롬프트
    - image_prompt는 짧고 간단한 영어 장면 설명만 써라
-   - image_prompt는 8~18개 영어 단어 정도의 짧은 프레이즈로 작성하라
-   - 스타일, 금지어, 카메라 조건을 길게 반복하지 말고 장면 묘사만 남겨라
+   - image_prompt는 4~8개 영어 단어의 아주 짧은 명사형 프레이즈로 작성하라
+   - 동작 묘사보다 사물, 공간, 풍경 같은 장면 핵심만 남겨라
+   - 스타일, 금지어, 카메라 조건은 쓰지 말고 장면 단어만 남겨라
    - image_prompt는 위 이미지 분위기 프리셋의 감성을 반영하되, 장면의 핵심 대상과 맥락이 먼저 읽히게 작성하라
    - image_prompt는 주제를 직접 보여주는 실사형 장면이어야 한다
-   - 가능하면 사람 얼굴, 인물 중심 구도, 초상화는 피하고 물건, 공간, 풍경, 책상 위 장면처럼 비인물 피사체를 우선하라
-   - 인물이 꼭 필요할 때만 멀리서 작게 포함하고, 얼굴 클로즈업은 절대 피하라
+   - 사람, 얼굴, 손은 쓰지 말고 사물, 공간, 풍경 중심으로 작성하라
    - 주제와 어울리는 자연스러운 실사 장면을 우선하라
-   - 사물, 공간, 풍경, 도시 장면, 이동 장면, 생활 환경, 상징적인 디테일까지 다양하게 사용할 수 있다
-   - 사람은 꼭 필요할 때만 보조적으로 사용하라
-   - 사람이 필요할 때는 얼굴 정면이나 클로즈업 대신 뒷모습, 옆모습 일부, 실루엣 정도만 제한적으로 사용하라
-   - 손, 손가락, 손 제스처가 화면의 주 피사체가 되지 않게 하라
-   - 손 클로즈업, 손가락 포인팅, 음식이나 물건을 집는 손 장면은 가능한 한 피하라
-   - 정말 불가피할 때만 손이 작게 일부 보이게 하고, 손이 시선을 끌지 않게 하라
    - 이미지 톤은 주제의 분위기에 맞춰라
    - 아침, 식사, 건강, 습관, 회복, 루틴, 생산성처럼 밝은 생활형 주제는 밝고 산뜻한 자연광, 아침 햇살, 신선한 공기감이 느껴지게 구성하라
    - 위기, 불안, 범죄, 사고, 전쟁, 상실처럼 무거운 주제일 때만 어둡고 긴장감 있는 톤을 사용하라
    - 아침 식사나 건강 주제는 카페/매장보다 집 주방, 식탁, 창가, 햇빛이 드는 생활 공간을 우선하라
-   - 매장, 식당, 거리 간판, 포스터 벽, 제품 포장, 라벨이 많은 진열 공간, 글자가 붙은 소품이 많은 장소는 피하라
-   - 어떤 형태의 글자, 숫자, 로고, 라벨, 표지, 인쇄물, 손글씨, 화면 텍스트도 읽히면 안 된다
-   - 텍스트가 생길 수 있는 요소가 나오더라도 카메라 심도, 거리, 각도, 가림, 빛 반사 등을 이용해 자연스럽게 흐릿하거나 읽을 수 없게 구성하라
+   - 간판, 포스터, 제품 포장, 라벨, 메뉴판처럼 글자가 생기기 쉬운 장면은 피하라
+   - 글자, 숫자, 로고, 라벨, 인쇄물은 읽히면 안 되고 생기더라도 흐릿해야 한다
    - illustration, painting, 3d render, cgi 느낌은 절대 피하라
    - 왼쪽 하단에 큰 제목이 들어갈 여백이 있도록 구성
    - 예시: "sunlit home breakfast table with toast fruit and orange juice"
@@ -161,28 +164,21 @@ def _build_generation_prompt(topic: str, image_style: Optional[dict] = None) -> 
    - cta: 행동유도 문구, 15자 이내
    - image_prompt: 영어로 된 콘텐츠 배경 이미지 프롬프트
    - image_prompt는 짧고 간단한 영어 장면 설명만 써라
-   - image_prompt는 8~18개 영어 단어 정도의 짧은 프레이즈로 작성하라
-   - 스타일, 금지어, 카메라 조건을 길게 반복하지 말고 장면 묘사만 남겨라
+   - image_prompt는 4~8개 영어 단어의 아주 짧은 명사형 프레이즈로 작성하라
+   - 동작 묘사보다 사물, 공간, 풍경 같은 장면 핵심만 남겨라
+   - 스타일, 금지어, 카메라 조건은 쓰지 말고 장면 단어만 남겨라
    - image_prompt는 위 이미지 분위기 프리셋의 감성을 반영하되, 장면의 핵심 대상과 맥락이 먼저 읽히게 작성하라
    - image_prompt는 각 슬라이드 내용과 직접 관련된 실사형 장면이어야 한다
    - 실제 뉴스/다큐/라이프스타일 사진처럼 보일 장면 설명이어야 한다
-   - 가능하면 사람보다 물건, 장소, 풍경, 환경 디테일을 우선하라
-   - 인물이 꼭 필요할 때만 얼굴이 강조되지 않는 자연스러운 상황 컷으로 작성하라
+   - 사람, 얼굴, 손은 쓰지 말고 물건, 장소, 풍경, 환경 디테일을 우선하라
    - 하단에 텍스트가 잘 보이도록 아래쪽 구도가 단순해야 한다
    - 주제와 어울리는 자연스러운 실사 장면을 우선하라
-   - 사물, 공간, 풍경, 도시 장면, 이동 장면, 생활 환경, 상징적인 디테일까지 다양하게 사용할 수 있다
-   - 사람은 꼭 필요할 때만 보조적으로 사용하라
-   - 사람이 필요할 때는 얼굴 정면이나 클로즈업 대신 뒷모습, 옆모습 일부, 실루엣 정도만 제한적으로 사용하라
-   - 손, 손가락, 손 제스처가 화면의 주 피사체가 되지 않게 하라
-   - 손 클로즈업, 손가락 포인팅, 물건을 집거나 가리키는 손 장면은 가능한 한 피하라
-   - 정말 불가피할 때만 손이 작게 일부 보이게 하고, 손이 시선을 끌지 않게 하라
    - 이미지 톤은 주제의 분위기에 맞춰라
    - 아침, 식사, 건강, 습관, 회복, 루틴, 생산성처럼 밝은 생활형 주제는 밝고 산뜻한 자연광, 아침 햇살, 신선한 공기감이 느껴지게 구성하라
    - 위기, 불안, 범죄, 사고, 전쟁, 상실처럼 무거운 주제일 때만 어둡고 긴장감 있는 톤을 사용하라
    - 아침 식사나 건강 주제는 카페/매장보다 집 주방, 식탁, 창가, 햇빛이 드는 생활 공간을 우선하라
-   - 매장, 식당, 거리 간판, 포스터 벽, 제품 포장, 라벨이 많은 진열 공간, 글자가 붙은 소품이 많은 장소는 피하라
-   - 어떤 형태의 글자, 숫자, 로고, 라벨, 표지, 인쇄물, 손글씨, 화면 텍스트도 읽히면 안 된다
-   - 텍스트가 생길 수 있는 요소가 나오더라도 카메라 심도, 거리, 각도, 가림, 빛 반사 등을 이용해 자연스럽게 흐릿하거나 읽을 수 없게 구성하라
+   - 간판, 포스터, 제품 포장, 라벨, 메뉴판처럼 글자가 생기기 쉬운 장면은 피하라
+   - 글자, 숫자, 로고, 라벨, 인쇄물은 읽히면 안 되고 생기더라도 흐릿해야 한다
    - illustration, painting, 3d render, cgi 느낌은 절대 피하라
    - 예시: "bright home kitchen counter with yogurt berries and morning sunlight"
 4. 반드시 유효한 JSON 배열만 출력하라
@@ -216,7 +212,7 @@ def _build_feed_text_prompt(topic: str, slides: list) -> str:
 
     slides_text = "\n".join(slide_summaries)
 
-    return f"""당신은 인스타그램 피드 본문을 작성하는 에디터이다.
+    return f"""당신은 인스타그램 피드용 한 줄 요약문을 작성하는 에디터이다.
 
 주제: {topic}
 
@@ -224,27 +220,14 @@ def _build_feed_text_prompt(topic: str, slides: list) -> str:
 {slides_text}
 
 아래 규칙을 반드시 지켜라:
-1. 위 슬라이드 내용을 바탕으로 인스타그램 피드에 들어갈 한국어 평문 텍스트를 작성하라
-2. 슬라이드 내용을 간단하고 이해하기 쉽게 요약하는 글로 작성하라
-3. 카드 한 장 한 장을 기계적으로 나열하지 말고, 전체 내용을 자연스럽게 풀어 쓴 요약문으로 작성하라
-4. 어려운 표현보다 쉽게 읽히는 설명을 우선하라
-5. 과장된 광고 문구, 이모지, 번호 목록, 불릿 목록은 쓰지 마라
-6. 말투는 슬라이드와 어울리는 인스타그램형 해요체로 작성하라
-7. 너무 딱딱한 기사체, 보고서체, 설명서체는 피하고, 사람에게 편하게 설명해주는 말투로 작성하라
-8. 가볍고 친근하지만 정보성은 유지하라. 지나치게 가볍거나 유행어를 남발하지 마라
-9. 광고 카피처럼 과장하지 말고, 저장해두고 다시 읽고 싶은 자연스러운 캡션 톤을 유지하라
-10. 분량은 너무 길지 않게 4~7문장 정도의 짧은 요약문으로 작성하라
-11. 첫 문장만 읽어도 글의 핵심이 바로 이해되게 하라
-12. 한 덩어리로 길게 붙여 쓰지 말고, 읽기 편하도록 문단 단위로 줄바꿈을 넣어라
-13. 전체 텍스트는 보통 2~3개의 짧은 문단으로 나누고, 문단 사이에는 빈 줄을 1줄 넣어라
-14. 각 문단은 보통 1~2문장 정도로 구성해 인스타그램 피드에서 쉽게 읽히게 하라
-15. 줄바꿈은 의미 단위가 자연스럽게 끊기는 지점에서만 넣고, 문장 중간을 억지로 끊지 마라
-16. 본문이 끝난 뒤 마지막 줄에는 해시태그만 따로 모아 한 줄로 출력하라
-17. 해시태그는 슬라이드 내용과 직접 관련된 것 위주로 만들고, 인스타그램에서 노출과 탐색에 도움이 될 만한 넓은 관심사 해시태그도 함께 섞어라
-18. 해시태그 개수는 고정하지 말고 주제에 맞게 자연스럽게 정하라
-19. 해시태그는 모두 `#` 형태로 쓰고, 마지막 줄 한 줄에 공백으로 구분해 나열하라
-20. 마지막 문장은 저장하거나 다시 떠올려볼 만한 포인트로 가볍게 마무리한 뒤, 한 줄 띄우고 해시태그 줄을 붙여라
-21. 마크다운, 설명, 코드펜스 없이 최종 평문만 출력하라"""
+1. 위 슬라이드 내용을 바탕으로 첫 줄에 들어갈 한국어 한 줄 요약만 작성하라
+2. 전체 내용을 한 문장으로만 압축하라
+3. 줄바꿈은 절대 넣지 마라
+4. 해시태그, 번호, 불릿, 따옴표, 설명 문구를 쓰지 마라
+5. 길이는 짧고 간결하게 유지하되 핵심이 바로 읽히게 하라
+6. 말투는 친절하고 자연스러운 해요체로 작성하라
+7. 인스타 피드 첫 줄처럼 저장하고 싶어지는 요약 느낌으로 작성하라
+8. 마크다운, 설명, 코드펜스 없이 한 줄 문장만 출력하라"""
 
 
 def _extract_text_from_response(response) -> str:
@@ -263,21 +246,30 @@ def _normalize_feed_text(text: str) -> str:
         if normalized.lower().startswith("text"):
             normalized = normalized[4:].strip()
 
-    raw_lines = [line.strip() for line in normalized.splitlines()]
-    cleaned_lines = []
-    previous_blank = False
+    lines = [line.strip() for line in normalized.splitlines() if line.strip()]
+    if not lines:
+        return ""
 
-    for line in raw_lines:
-        if not line:
-            if not previous_blank and cleaned_lines:
-                cleaned_lines.append("")
-            previous_blank = True
-            continue
+    summary = lines[0]
+    summary = re.sub(r"^[-*0-9.\s]+", "", summary).strip()
+    summary = re.sub(r"#\S+", "", summary).strip()
+    summary = " ".join(summary.split())
+    return summary
 
-        cleaned_lines.append(line)
-        previous_blank = False
 
-    return "\n".join(cleaned_lines).strip()
+def _compose_feed_text(summary_line: str, topic: str, slides: list) -> str:
+    summary = summary_line.strip() if summary_line else ""
+    if not summary:
+        summary = _build_feed_summary_fallback(topic, slides)
+
+    thumbnail_title = _get_thumbnail_title(slides, topic)
+    hashtag_line = _build_demo_hashtags(topic, slides)
+    return (
+        f"{summary}\n"
+        f"{thumbnail_title}, 공유하고 저장하세요!\n"
+        "디지털페이지 다운로드는 프로필 링크에서\n\n"
+        f"{hashtag_line}"
+    )
 
 
 def _ensure_hashtag_line(text: str, topic: str, slides: list) -> str:
@@ -288,7 +280,11 @@ def _ensure_hashtag_line(text: str, topic: str, slides: list) -> str:
     lines = [line.rstrip() for line in normalized.splitlines()]
     non_empty_lines = [line for line in lines if line.strip()]
     if non_empty_lines and non_empty_lines[-1].lstrip().startswith("#"):
-        return normalized
+        for idx in range(len(lines) - 1, -1, -1):
+            if lines[idx].strip():
+                lines[idx] = _merge_default_hashtags(lines[idx], topic, slides)
+                break
+        return "\n".join(lines).strip()
 
     hashtag_line = _build_demo_hashtags(topic, slides)
     return f"{normalized}\n\n{hashtag_line}"
@@ -416,6 +412,13 @@ def _validate_slides(slides: list):
             if key in s and isinstance(s[key], str):
                 s[key] = " ".join(s[key].split())
 
+        if "image_prompt" in s and isinstance(s["image_prompt"], str):
+            s["image_prompt"] = _sanitize_image_prompt(
+                s["image_prompt"],
+                s.get("type", ""),
+                s.get("title", ""),
+            )
+
         if s.get("type") == "thumbnail":
             s["subtitle"] = _normalize_sentence_ending(s.get("subtitle", ""))
             if len(s.get("title", "")) > 20:
@@ -436,6 +439,33 @@ def _validate_slides(slides: list):
             s["cta"] = _normalize_sentence_ending(s.get("cta", ""))
 
 
+def _sanitize_image_prompt(prompt: str, slide_type: str, title: str) -> str:
+    normalized = " ".join(prompt.split()).strip()
+    lowered = normalized.lower()
+    banned_words = {
+        "hand", "hands", "finger", "fingers", "palm", "palms",
+        "arm", "arms", "person", "people", "human", "man", "woman",
+        "boy", "girl", "child", "children", "crowd", "face", "portrait",
+        "selfie", "point", "pointing", "hold", "holding", "touch", "touching",
+        "grab", "grabbing", "pick", "picking", "gesture", "gesturing",
+        "planting", "farmer", "gardeners", "gardener",
+        "photorealistic", "real", "camera", "photo", "natural", "lighting",
+        "clean", "composition", "scene", "visual", "summary", "practical",
+        "everyday", "about", "using", "with", "caption"
+    }
+    tokens = re.findall(r"[0-9a-zA-Z가-힣_-]+", lowered)
+    kept = [token for token in tokens if token not in banned_words]
+    kept = kept[:8]
+
+    if not kept:
+        kept = ["objects", "space"]
+        if slide_type == "thumbnail":
+            kept.insert(0, "symbolic")
+
+    core = " ".join(kept)
+    return f"{core}, objects only, no people, no hands, no text"
+
+
 def _demo_slides(topic: str) -> list:
     """API 키 없을 때 사용할 데모 슬라이드"""
     short_title = topic or "오늘의 트렌드"
@@ -445,35 +475,35 @@ def _demo_slides(topic: str) -> list:
             "badge": "TREND",
             "title": short_title,
             "subtitle": f"요즘 흐름을 빠르게 읽을 수 있게 정리했어요.",
-            "image_prompt": f"photorealistic, real camera photo, object-focused scene, natural lighting, clean composition, negative space on left bottom, no people if possible, no face close-up, no readable text, no readable letters, no readable numbers, no readable signage, no readable logo, no watermark, no poster, no cover design, no illustration, no cgi, no 3d render, any possible text must be naturally blurred or unreadable, visually represent the topic with objects, space, or environment: {topic}",
+            "image_prompt": f"symbolic objects for {topic}",
         },
         {
             "type": "content",
             "title": "핵심 포인트 정리",
             "body": f"{short_title}에서 먼저 봐야 할 핵심만 골라봤어요. 바로 이해할 수 있게 정리했어요",
             "cta": "핵심부터 확인!",
-            "image_prompt": f"photorealistic, real camera photo, object-focused or environment-focused scene, natural lighting, no people if possible, no face close-up, no readable text, no readable letters, no readable numbers, no readable signage, no readable logo, no watermark, no poster, no cover design, no illustration, no cgi, no 3d render, any possible text must be naturally blurred or unreadable, clean lower area for Korean caption, visual summary of {topic}",
+            "image_prompt": f"objects about {topic}",
         },
         {
             "type": "content",
             "title": "왜 주목받을까",
             "body": f"지금 이 주제가 더 중요해진 이유를 짚어봤어요. 흐름을 보면 더 쉽게 와닿아요",
             "cta": "이유 바로 보기",
-            "image_prompt": f"photorealistic, real camera photo, object-focused or environment-focused scene, natural lighting, no people if possible, no face close-up, no readable text, no readable letters, no readable numbers, no readable signage, no readable logo, no watermark, no poster, no cover design, no illustration, no cgi, no 3d render, any possible text must be naturally blurred or unreadable, clean lower area for Korean caption, explain why {topic} is important using environment or objects",
+            "image_prompt": f"environment for {topic}",
         },
         {
             "type": "content",
             "title": "실전 적용 팁",
             "body": f"이 주제를 일상에 자연스럽게 쓰는 방법을 담았어요. 바로 따라 하기 편하게 풀었어요",
             "cta": "바로 써먹기",
-            "image_prompt": f"photorealistic, real camera photo, object-focused or environment-focused scene, natural lighting, no people if possible, no face close-up, no readable text, no readable letters, no readable numbers, no readable signage, no readable logo, no watermark, no poster, no cover design, no illustration, no cgi, no 3d render, any possible text must be naturally blurred or unreadable, clean lower area for Korean caption, practical everyday scene about {topic} using tools, desk, or space",
+            "image_prompt": f"practical objects for {topic}",
         },
         {
             "type": "content",
             "title": "마무리 체크",
             "body": f"마지막으로 챙기면 좋은 포인트를 담았어요. 저장해두고 다시 보면 더 좋아요",
             "cta": "저장해두기",
-            "image_prompt": f"photorealistic, real camera photo, object-focused or environment-focused scene, natural lighting, no people if possible, no face close-up, no readable text, no readable letters, no readable numbers, no readable signage, no readable logo, no watermark, no poster, no cover design, no illustration, no cgi, no 3d render, any possible text must be naturally blurred or unreadable, clean lower area for Korean caption, closing summary visual for {topic} with calm realistic composition",
+            "image_prompt": f"calm objects for {topic}",
         },
     ]
     return _append_promo_slide(slides, topic)
@@ -500,38 +530,8 @@ def _build_promo_slide(topic: str) -> dict:
 
 
 def _build_demo_feed_text(topic: str, slides: list) -> str:
-    content_points = []
-    for slide in slides:
-        if slide.get("type") != "content":
-            continue
-
-        title = slide.get("title", "").strip()
-        body = slide.get("body", "").strip()
-        if title and body:
-            content_points.append(f"{title}에서는 {body}")
-        elif body:
-            content_points.append(body)
-
-    if not content_points:
-        return (
-            f"{topic}에 대해 핵심만 편하게 읽히도록 정리했어요.\n"
-            "지금 왜 이 이야기가 많이 보이는지, 우리 일상에서는 어떻게 받아들이면 좋은지 쉽게 풀어봤어요.\n"
-            "가볍게 읽어두고 필요할 때 다시 떠올려봐도 좋아요.\n\n"
-            f"{_build_demo_hashtags(topic, slides)}"
-        )
-
-    summary_lines = [
-        f"{topic}에 대해 핵심만 편하게 읽히도록 정리했어요.",
-        content_points[0],
-    ]
-
-    if len(content_points) > 1:
-        summary_lines.append(content_points[1])
-
-    summary_lines.append("복잡하게 느껴질 수 있는 내용도 이렇게 보면 조금 더 가볍게 흐름이 잡혀요.")
-    summary_lines.append("")
-    summary_lines.append(_build_demo_hashtags(topic, slides))
-    return "\n".join(summary_lines)
+    summary = _build_feed_summary_fallback(topic, slides)
+    return _compose_feed_text(summary, topic, slides)
 
 
 def _build_demo_hashtags(topic: str, slides: list) -> str:
@@ -561,11 +561,54 @@ def _build_demo_hashtags(topic: str, slides: list) -> str:
         "#요즘이야기",
     ]
     tags.extend(broad_tags)
+    tags.extend(DEFAULT_FEED_HASHTAGS)
 
     unique_tags = []
     seen = set()
     for tag in tags:
         if not tag or tag in seen:
+            continue
+        unique_tags.append(tag)
+        seen.add(tag)
+
+    return " ".join(unique_tags)
+
+
+def _build_feed_summary_fallback(topic: str, slides: list) -> str:
+    content_titles = []
+    for slide in slides:
+        if slide.get("type") != "content":
+            continue
+        title = slide.get("title", "").strip()
+        if title:
+            content_titles.append(title)
+
+    if content_titles:
+        return f"{topic}의 핵심은 {content_titles[0]}부터 가볍게 이해해보는 거예요."
+    return f"{topic}의 핵심 흐름만 한 번에 이해할 수 있게 정리했어요."
+
+
+def _get_thumbnail_title(slides: list, topic: str) -> str:
+    for slide in slides:
+        if slide.get("type") == "thumbnail":
+            title = slide.get("title", "").strip()
+            if title:
+                return title
+    return topic
+
+
+def _merge_default_hashtags(existing_line: str, topic: str, slides: list) -> str:
+    tags = []
+    for token in existing_line.split():
+        if token.startswith("#"):
+            tags.append(token)
+
+    tags.extend(_build_demo_hashtags(topic, slides).split())
+
+    unique_tags = []
+    seen = set()
+    for tag in tags:
+        if not tag or not tag.startswith("#") or tag in seen:
             continue
         unique_tags.append(tag)
         seen.add(tag)
