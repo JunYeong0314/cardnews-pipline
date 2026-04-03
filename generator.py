@@ -132,7 +132,9 @@ def _build_generation_prompt(topic: str, image_style: Optional[dict] = None) -> 
    - 사물, 공간, 풍경, 도시 장면, 이동 장면, 생활 환경, 상징적인 디테일까지 다양하게 사용할 수 있다
    - 사람은 꼭 필요할 때만 보조적으로 사용하라
    - 사람이 필요할 때는 얼굴 정면이나 클로즈업 대신 뒷모습, 옆모습 일부, 실루엣 정도만 제한적으로 사용하라
-   - 손 클로즈업이나 과장된 제스처는 기본 선택이 아니며, 주제를 표현하는 데 꼭 필요할 때만 사용하라
+   - 손, 손가락, 손 제스처가 화면의 주 피사체가 되지 않게 하라
+   - 손 클로즈업, 손가락 포인팅, 음식이나 물건을 집는 손 장면은 가능한 한 피하라
+   - 정말 불가피할 때만 손이 작게 일부 보이게 하고, 손이 시선을 끌지 않게 하라
    - 이미지 톤은 주제의 분위기에 맞춰라
    - 아침, 식사, 건강, 습관, 회복, 루틴, 생산성처럼 밝은 생활형 주제는 밝고 산뜻한 자연광, 아침 햇살, 신선한 공기감이 느껴지게 구성하라
    - 위기, 불안, 범죄, 사고, 전쟁, 상실처럼 무거운 주제일 때만 어둡고 긴장감 있는 톤을 사용하라
@@ -171,7 +173,9 @@ def _build_generation_prompt(topic: str, image_style: Optional[dict] = None) -> 
    - 사물, 공간, 풍경, 도시 장면, 이동 장면, 생활 환경, 상징적인 디테일까지 다양하게 사용할 수 있다
    - 사람은 꼭 필요할 때만 보조적으로 사용하라
    - 사람이 필요할 때는 얼굴 정면이나 클로즈업 대신 뒷모습, 옆모습 일부, 실루엣 정도만 제한적으로 사용하라
-   - 손 클로즈업이나 과장된 제스처는 기본 선택이 아니며, 주제를 표현하는 데 꼭 필요할 때만 사용하라
+   - 손, 손가락, 손 제스처가 화면의 주 피사체가 되지 않게 하라
+   - 손 클로즈업, 손가락 포인팅, 물건을 집거나 가리키는 손 장면은 가능한 한 피하라
+   - 정말 불가피할 때만 손이 작게 일부 보이게 하고, 손이 시선을 끌지 않게 하라
    - 이미지 톤은 주제의 분위기에 맞춰라
    - 아침, 식사, 건강, 습관, 회복, 루틴, 생산성처럼 밝은 생활형 주제는 밝고 산뜻한 자연광, 아침 햇살, 신선한 공기감이 느껴지게 구성하라
    - 위기, 불안, 범죄, 사고, 전쟁, 상실처럼 무거운 주제일 때만 어둡고 긴장감 있는 톤을 사용하라
@@ -490,16 +494,9 @@ def _build_promo_slide(topic: str) -> dict:
         "title": "메모는 남기고\n정리는 AI에게 맡기세요",
         "subtitle": "중요한 내용만 더 또렷하게 정리되는\n디지털페이지의 마지막 한 장",
         "cta": "다운로드는 프로필에서 확인",
-        "image_prompt": _build_promo_image_prompt(topic),
+        "image_prompt": "",
+        "reuse_image_from": 0,
     }
-
-
-def _build_promo_image_prompt(topic: str) -> str:
-    return (
-        f"closing scene related to {topic}, calm resolved final mood, "
-        "natural realistic environment, clean centered composition, "
-        "enough negative space for centered text, feels like a concluding final page"
-    )
 
 
 def _build_demo_feed_text(topic: str, slides: list) -> str:

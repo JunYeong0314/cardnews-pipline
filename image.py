@@ -77,11 +77,13 @@ def _build_photoreal_prompt(prompt: str, image_style: Optional[dict] = None) -> 
         "natural scene matched to the topic, varied composition, cinematic but believable, "
         "prefer objects, places, landscape, environment, and atmospheric details, "
         "use people only if truly needed, avoid gesture-focused framing, "
+        "avoid hands or fingers as a subject, "
         "natural depth of field"
     )
     negative = (
         "no face close-up, no portrait, no direct face, "
-        "no hand close-up unless necessary, no gesture-focused composition, "
+        "no hand close-up, no fingers close-up, no pointing hand, no hand holding food, "
+        "no hand holding objects near camera, no gesture-focused composition, "
         "no illustration, no painting, no anime, no cartoon, "
         "no cgi, no 3d render, no artificial plastic skin, "
         "no readable text, no readable letters, no readable words, "

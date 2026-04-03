@@ -88,6 +88,13 @@ def main():
     from image import generate_image
     slide_image_paths = []
     for i, slide in enumerate(slides):
+        reuse_index = slide.get("reuse_image_from")
+        if isinstance(reuse_index, int) and 0 <= reuse_index < len(slide_image_paths):
+            reused_path = slide_image_paths[reuse_index]
+            slide_image_paths.append(reused_path)
+            logger.info(f"[Step 4] slides[{i}] slides[{reuse_index}] 이미지 재사용")
+            continue
+
         image_prompt = slide.get("image_prompt", "").strip()
         if not image_prompt:
             logger.info(f"[Step 4] slides[{i}] 이미지 프롬프트 없음 → 스킵")

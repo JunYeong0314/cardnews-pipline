@@ -34,6 +34,11 @@ def main() -> None:
 
     slide_image_paths = []
     for index, slide in enumerate(slides, start=1):
+        reuse_index = slide.get("reuse_image_from")
+        if isinstance(reuse_index, int) and 0 <= reuse_index < len(slide_image_paths):
+            slide_image_paths.append(slide_image_paths[reuse_index])
+            continue
+
         prompt = slide.get("image_prompt", "").strip()
         if not prompt:
             slide_image_paths.append("")
