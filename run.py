@@ -6,13 +6,18 @@ run.py — 카드뉴스 파이프라인 진입점
 """
 
 import sys
+import argparse
 import os
 import json
 import shutil
 import logging
 from datetime import datetime
 
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    def load_dotenv(*args, **kwargs):
+        return None
 
 load_dotenv()
 
@@ -38,14 +43,47 @@ def _build_feed_upload_bundle(output_dir: str, output_files: list, feed_text_pat
     return upload_dir
 
 
+def _parse_args():
+    parser = argparse.ArgumentParser(description="인스타 카드뉴스 생성 파이프라인")
+    parser.add_argument("topic", nargs="?", help="직접 생성할 주제")
+    parser.add_argument(
+        "--image-style",
+        dest="image_style_name",
+        help="이미지 분위기 프리셋 이름 (default, warm_lifestyle, clean_minimal, moody_editorial, bright_magazine, custom)",
+    )
+    parser.add_argument(
+        "--generator-hint",
+        dest="generator_hint",
+        help="슬라이드 image_prompt 생성 시 반영할 한국어 분위기 힌트",
+    )
+    parser.add_argument(
+        "--image-prompt-hint",
+        dest="image_prompt_hint",
+        help="최종 이미지 모델 프롬프트에 반영할 짧은 영어 힌트",
+    )
+    parser.add_argument(
+        "--no-text",
+        action="store_true",
+        help="이미지에서 읽히는 글자, 로고, 간판을 강하게 배제",
+    )
+    parser.add_argument(
+        "--image-mode",
+        choices=["black_bg", "neutral_landscape"],
+        help="이미지 생성 모드 강제 지정 (검정 배경 또는 주제 무관 풍경)",
+    )
+    return parser.parse_args()
+
+
 def main():
+    args = _parse_args()
+
     logger.info("=" * 50)
     logger.info("카드뉴스 파이프라인 시작")
     logger.info("=" * 50)
 
     # ── Step 1: 주제 결정 ──
-    if len(sys.argv) > 1:
-        topic = sys.argv[1]
+    if args.topic:
+        topic = args.topic
         logger.info(f"[Step 1] 주제 직접 지정: {topic}")
     else:
         logger.info("[Step 1] 트렌드 분석으로 주제 자동 선정...")
@@ -61,8 +99,14 @@ def main():
     logger.info(f"출력 디렉토리: {output_dir}")
 
     # ── Step 2: 슬라이드 콘텐츠 생성 ──
-    from image_style_config import get_image_style
-    image_style = get_image_style()
+    from image_style_config import build_image_style
+    image_style = build_image_style(
+        style_name=args.image_style_name,
+        generator_hint=args.generator_hint,
+        image_prompt_hint=args.image_prompt_hint,
+        no_text=args.no_text,
+        image_mode=args.image_mode,
+    )
     logger.info(
         f"[Step 2] 이미지 분위기 프리셋: {image_style.get('display_name', image_style.get('style_key', 'default'))}"
     )

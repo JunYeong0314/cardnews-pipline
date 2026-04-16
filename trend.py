@@ -8,7 +8,11 @@ import json
 import logging
 from datetime import datetime
 
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    def load_dotenv(*args, **kwargs):
+        return None
 
 load_dotenv()
 logger = logging.getLogger(__name__)

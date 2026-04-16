@@ -11,7 +11,11 @@ import re
 from pathlib import Path
 from typing import Optional
 
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    def load_dotenv(*args, **kwargs):
+        return None
 from image_style_config import get_image_style
 
 load_dotenv()
@@ -75,9 +79,23 @@ def _build_photoreal_prompt(prompt: str, image_style: Optional[dict] = None) -> 
     short_style = " ".join(style_hint.split()[:5])
     style_fragment = f", {short_style}" if short_style else ""
     core = _compress_core_prompt(prompt)
+    korean_symbol_hint = _korean_symbol_hint(prompt)
+    strict_no_text = style.get("strict_no_text", False)
+    no_text_fragment = "no readable text, blur any text"
+    if strict_no_text and _has_korean_history_subject(prompt):
+        core = "korean historic symbolism"
+    if strict_no_text:
+        no_text_fragment = (
+            "no readable text, no letters, no numbers, no logo, no signage, "
+            "no poster, no label, no packaging, no inscription, no engraved stone, "
+            "no plaque, no banner, no paper, no document, no ballot, no card, "
+            "no book, no newspaper, no flyer, no ticket, no signboard, no wall notice, "
+            "no writing surface, blur any text"
+        )
+    symbol_fragment = f", {korean_symbol_hint}" if korean_symbol_hint else ""
     return (
-        f"{core}, {visual_direction}{style_fragment}, "
-        "objects only, no people, no hands, no readable text, blur any text"
+        f"{core}{symbol_fragment}, {visual_direction}{style_fragment}, "
+        f"objects only, no people, no hands, {no_text_fragment}"
     )
 
 
@@ -91,12 +109,35 @@ def _compress_core_prompt(prompt: str) -> str:
         "grab", "grabbing", "pick", "picking", "gesture", "gesturing",
         "photorealistic", "real", "camera", "photo", "natural", "lighting",
         "clean", "composition", "scene", "visual", "summary", "practical",
-        "everyday", "about", "using", "with", "caption", "only"
+        "everyday", "about", "using", "with", "caption", "only",
+        "vote", "ballot", "election", "poster", "sign", "signage",
+        "paper", "document", "documents", "card", "book", "newspaper",
+        "부정선거", "선거", "투표", "투표함", "전단", "현수막", "포스터", "유인물", "신문",
     }
     kept = [token for token in tokens if token not in banned][:8]
     if not kept:
         kept = ["objects", "environment"]
     return " ".join(kept)
+
+
+def _korean_symbol_hint(prompt: str) -> str:
+    lowered = prompt.lower()
+    korean_history_keywords = (
+        "대한민국", "한국", "korea", "korean", "4.19", "419", "혁명",
+        "민주", "독립", "항쟁", "기념", "역사", "시위"
+    )
+    if any(keyword in lowered for keyword in korean_history_keywords):
+        return "taegukgi fabric mugunghwa petals empty plaza blue sky tree shadows"
+    return ""
+
+
+def _has_korean_history_subject(prompt: str) -> bool:
+    lowered = prompt.lower()
+    keywords = (
+        "대한민국", "한국", "korea", "korean", "4.19", "419", "혁명",
+        "민주", "독립", "항쟁", "역사", "시위", "선거", "투표", "정권"
+    )
+    return any(keyword in lowered for keyword in keywords)
 
 
 def _infer_visual_direction(prompt: str) -> str:

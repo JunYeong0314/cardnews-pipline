@@ -7,6 +7,7 @@ Usage:
 """
 
 import sys
+import argparse
 import types
 from pathlib import Path
 
@@ -17,18 +18,56 @@ def _install_dotenv_stub() -> None:
     sys.modules["dotenv"] = dotenv
 
 
+def _parse_args():
+    parser = argparse.ArgumentParser(description="API 없이 카드 디자인 프리뷰 생성")
+    parser.add_argument("topic", nargs="?", default="이란의 호르무즈 해협 봉쇄", help="테스트 주제")
+    parser.add_argument(
+        "--image-style",
+        dest="image_style_name",
+        help="이미지 분위기 프리셋 이름",
+    )
+    parser.add_argument(
+        "--generator-hint",
+        dest="generator_hint",
+        help="슬라이드 image_prompt 생성 시 반영할 한국어 분위기 힌트",
+    )
+    parser.add_argument(
+        "--image-prompt-hint",
+        dest="image_prompt_hint",
+        help="최종 이미지 모델 프롬프트에 반영할 짧은 영어 힌트",
+    )
+    parser.add_argument(
+        "--no-text",
+        action="store_true",
+        help="이미지에서 읽히는 글자, 로고, 간판을 강하게 배제",
+    )
+    parser.add_argument(
+        "--image-mode",
+        choices=["black_bg", "neutral_landscape"],
+        help="이미지 생성 모드 강제 지정 (검정 배경 또는 주제 무관 풍경)",
+    )
+    return parser.parse_args()
+
+
 def main() -> None:
-    topic = sys.argv[1] if len(sys.argv) > 1 else "이란의 호르무즈 해협 봉쇄"
+    args = _parse_args()
+    topic = args.topic
     _install_dotenv_stub()
 
     import generator
     import image
     import renderer
-    from image_style_config import get_image_style
+    from image_style_config import build_image_style
 
     output_dir = Path("output/test_content_design")
     output_dir.mkdir(parents=True, exist_ok=True)
-    image_style = get_image_style()
+    image_style = build_image_style(
+        style_name=args.image_style_name,
+        generator_hint=args.generator_hint,
+        image_prompt_hint=args.image_prompt_hint,
+        no_text=args.no_text,
+        image_mode=args.image_mode,
+    )
 
     slides = generator._demo_slides(topic)
 

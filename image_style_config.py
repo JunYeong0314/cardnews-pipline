@@ -99,3 +99,48 @@ def get_image_style(style_name: Optional[str] = None) -> dict:
     resolved = deepcopy(preset)
     resolved["style_key"] = selected_name
     return resolved
+
+
+def build_image_style(
+    style_name: Optional[str] = None,
+    generator_hint: Optional[str] = None,
+    image_prompt_hint: Optional[str] = None,
+    no_text: bool = False,
+    image_mode: Optional[str] = None,
+) -> dict:
+    selected_name = style_name
+    if not selected_name and (generator_hint or image_prompt_hint):
+        selected_name = "custom"
+
+    resolved = get_image_style(selected_name)
+
+    if generator_hint:
+        resolved["generator_hint"] = generator_hint
+    if image_prompt_hint:
+        resolved["image_prompt_hint"] = image_prompt_hint
+
+    if no_text:
+        no_text_generator = (
+            "글자, 숫자, 로고, 간판, 라벨, 포스터, 포장지, 비문, 각인, 현판, 배너가 보이지 않는 장면으로 구성하라. "
+            "텍스트가 생길 수 있는 요소보다 비어 있는 표면, 자연물, 사물, 공간 위주로 구성하라."
+        )
+        no_text_prompt = (
+            "no readable text, no letters, no numbers, no logo, no signage, "
+            "no poster, no label, no packaging, no inscription, no engraved stone, "
+            "no plaque, no banner, blur any text"
+        )
+        resolved["generator_hint"] = " ".join(
+            part for part in [resolved.get("generator_hint", "").strip(), no_text_generator] if part
+        )
+        resolved["image_prompt_hint"] = ", ".join(
+            part for part in [resolved.get("image_prompt_hint", "").strip(), no_text_prompt] if part
+        )
+        resolved["strict_no_text"] = True
+
+    if image_mode:
+        resolved["image_mode"] = image_mode
+
+    if generator_hint or image_prompt_hint or no_text or image_mode:
+        resolved["display_name"] = f"CLI {resolved.get('display_name', 'Custom')}"
+
+    return resolved

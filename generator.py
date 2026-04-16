@@ -8,7 +8,11 @@ import logging
 import re
 from typing import Optional
 
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    def load_dotenv(*args, **kwargs):
+        return None
 from image_style_config import get_image_style
 
 load_dotenv()
@@ -29,15 +33,15 @@ DEFAULT_FEED_HASHTAGS = [
 
 def generate_slides(topic: str, image_style: Optional[dict] = None) -> list:
     """주제를 받아 슬라이드 JSON 리스트를 반환한다."""
+    style = image_style or get_image_style()
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
         logger.info("ANTHROPIC_API_KEY 없음 → 데모 슬라이드 반환")
-        return _demo_slides(topic)
+        return _demo_slides(topic, image_style=style)
 
     import anthropic
     client = anthropic.Anthropic(api_key=api_key)
 
-    style = image_style or get_image_style()
     prompt = _build_generation_prompt(topic, style)
 
     last_error = None
@@ -55,6 +59,7 @@ def generate_slides(topic: str, image_style: Optional[dict] = None) -> list:
             slides = _parse_slides_json(text)
             _validate_slides(slides)
             slides = _append_promo_slide(slides, topic)
+            slides = _apply_image_mode(slides, topic, style)
             logger.info(f"슬라이드 {len(slides)}장 생성 완료")
             return slides
         except Exception as e:
@@ -65,7 +70,7 @@ def generate_slides(topic: str, image_style: Optional[dict] = None) -> list:
             logger.warning(f"슬라이드 JSON 파싱 실패 (시도 {attempt}/{MAX_GENERATION_ATTEMPTS}): {e}")
 
     logger.error(f"슬라이드 생성 오류: {last_error}")
-    return _demo_slides(topic)
+    return _demo_slides(topic, image_style=style)
 
 
 def generate_feed_text(topic: str, slides: list) -> str:
@@ -145,6 +150,8 @@ def _build_generation_prompt(topic: str, image_style: Optional[dict] = None) -> 
    - 아침 식사나 건강 주제는 카페/매장보다 집 주방, 식탁, 창가, 햇빛이 드는 생활 공간을 우선하라
    - 간판, 포스터, 제품 포장, 라벨, 메뉴판처럼 글자가 생기기 쉬운 장면은 피하라
    - 글자, 숫자, 로고, 라벨, 인쇄물은 읽히면 안 되고 생기더라도 흐릿해야 한다
+   - 종이, 문서, 책, 신문, 표지판, 배너, 투표용지처럼 글자가 실리기 쉬운 오브제는 쓰지 마라
+   - 역사/정치 주제는 태극기 천 질감, 무궁화, 하늘, 나무 그림자, 비어 있는 광장처럼 글자 없는 상징 배경을 우선하라
    - illustration, painting, 3d render, cgi 느낌은 절대 피하라
    - 왼쪽 하단에 큰 제목이 들어갈 여백이 있도록 구성
    - 예시: "sunlit home breakfast table with toast fruit and orange juice"
@@ -179,6 +186,8 @@ def _build_generation_prompt(topic: str, image_style: Optional[dict] = None) -> 
    - 아침 식사나 건강 주제는 카페/매장보다 집 주방, 식탁, 창가, 햇빛이 드는 생활 공간을 우선하라
    - 간판, 포스터, 제품 포장, 라벨, 메뉴판처럼 글자가 생기기 쉬운 장면은 피하라
    - 글자, 숫자, 로고, 라벨, 인쇄물은 읽히면 안 되고 생기더라도 흐릿해야 한다
+   - 종이, 문서, 책, 신문, 표지판, 배너, 투표용지처럼 글자가 실리기 쉬운 오브제는 쓰지 마라
+   - 역사/정치 주제는 태극기 천 질감, 무궁화, 하늘, 나무 그림자, 비어 있는 광장처럼 글자 없는 상징 배경을 우선하라
    - illustration, painting, 3d render, cgi 느낌은 절대 피하라
    - 예시: "bright home kitchen counter with yogurt berries and morning sunlight"
 4. 반드시 유효한 JSON 배열만 출력하라
@@ -466,7 +475,7 @@ def _sanitize_image_prompt(prompt: str, slide_type: str, title: str) -> str:
     return f"{core}, objects only, no people, no hands, no text"
 
 
-def _demo_slides(topic: str) -> list:
+def _demo_slides(topic: str, image_style: Optional[dict] = None) -> list:
     """API 키 없을 때 사용할 데모 슬라이드"""
     short_title = topic or "오늘의 트렌드"
     slides = [
@@ -506,7 +515,8 @@ def _demo_slides(topic: str) -> list:
             "image_prompt": f"calm objects for {topic}",
         },
     ]
-    return _append_promo_slide(slides, topic)
+    slides = _append_promo_slide(slides, topic)
+    return _apply_image_mode(slides, topic, image_style or get_image_style())
 
 
 def _append_promo_slide(slides: list, topic: str) -> list:
@@ -516,6 +526,25 @@ def _append_promo_slide(slides: list, topic: str) -> list:
     appended = list(slides)
     appended.append(_build_promo_slide(topic))
     return appended
+
+
+def _apply_image_mode(slides: list, topic: str, image_style: Optional[dict]) -> list:
+    mode = (image_style or {}).get("image_mode")
+    if not mode:
+        return slides
+
+    updated = []
+    for slide in slides:
+        cloned = dict(slide)
+        if mode == "black_bg":
+            cloned["background_mode"] = "solid_black"
+            cloned["image_prompt"] = ""
+        elif mode == "neutral_landscape":
+            cloned.pop("background_mode", None)
+            if cloned.get("type") != "promo":
+                cloned["image_prompt"] = "empty landscape sky trees field"
+        updated.append(cloned)
+    return updated
 
 
 def _build_promo_slide(topic: str) -> dict:

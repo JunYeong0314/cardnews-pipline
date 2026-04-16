@@ -44,10 +44,25 @@ chmod +x install.sh
 python run.py "메모의 순기능"
 ```
 
+이미지 분위기를 명령어 옵션으로 바꾸고 싶다면:
+
+```bash
+python run.py "메모의 순기능" --image-style bright_magazine
+python run.py "메모의 순기능" --generator-hint "사물 중심, 사람 없이, 밝은 자연광으로 구성하라"
+python run.py "메모의 순기능" --image-prompt-hint "bright object-only lifestyle realism"
+```
+
 디자인만 먼저 확인하고 싶다면:
 
 ```bash
 python preview_demo.py "메모의 순기능"
+```
+
+디자인 프리뷰에도 같은 옵션을 넣을 수 있습니다.
+
+```bash
+python preview_demo.py "메모의 순기능" --image-style clean_minimal
+python preview_demo.py "메모의 순기능" --generator-hint "여백이 많고 사물 중심으로 구성하라"
 ```
 
 ## 1. 사전 준비

@@ -10,7 +10,11 @@ import logging
 from html import escape
 from pathlib import Path
 
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    def load_dotenv(*args, **kwargs):
+        return None
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -122,6 +126,7 @@ def _render_with_playwright(slides, slide_bg_b64, output_dir):
 def _build_thumbnail_html(slide: dict, bg_b64: str) -> str:
     """썸네일 카드 HTML"""
     bg_url = f"data:image/png;base64,{bg_b64}" if bg_b64 else ""
+    background_style = _background_style(slide, bg_url, "#d7d0c3")
     title = escape(slide.get("title", ""))
     subtitle = escape(slide.get("subtitle", ""))
 
@@ -146,10 +151,7 @@ def _build_thumbnail_html(slide: dict, bg_b64: str) -> str:
     position: relative;
     width: {CARD_WIDTH}px;
     height: {CARD_HEIGHT}px;
-    background-color: #d7d0c3;
-    {f"background-image: url('{bg_url}');" if bg_url else ""}
-    background-size: cover;
-    background-position: center;
+    {background_style}
   }}
   .overlay {{
     position: absolute;
@@ -309,6 +311,7 @@ def _build_thumbnail_html(slide: dict, bg_b64: str) -> str:
 def _build_content_html(slide: dict, index: int, total: int, bg_b64: str) -> str:
     """콘텐츠 카드 HTML"""
     bg_url = f"data:image/png;base64,{bg_b64}" if bg_b64 else ""
+    background_style = _background_style(slide, bg_url, "#2b2b2b")
     title = escape(slide.get("title", ""))
     body = escape(slide.get("body", ""))
 
@@ -334,10 +337,7 @@ def _build_content_html(slide: dict, index: int, total: int, bg_b64: str) -> str
     position: relative;
     width: {CARD_WIDTH}px;
     height: {CARD_HEIGHT}px;
-    background-color: #2b2b2b;
-    {f"background-image: url('{bg_url}');" if bg_url else ""}
-    background-size: cover;
-    background-position: center;
+    {background_style}
     overflow: hidden;
   }}
   .overlay {{
@@ -451,6 +451,7 @@ def _build_promo_html(slide: dict, bg_b64: str) -> str:
     cta = escape(slide.get("cta", ""))
     template_path = Path(TEMPLATES_DIR) / "promo.html"
     template = template_path.read_text(encoding="utf-8")
+    frame_style = _frame_style(slide, bg_url)
     logo_src = _file_to_data_url(PROMO_LOGO_PATH)
     if logo_src:
         brand_block = (
@@ -463,11 +464,35 @@ def _build_promo_html(slide: dict, bg_b64: str) -> str:
     return (
         template
         .replace("{{BG_IMAGE}}", escape(bg_url, quote=True))
+        .replace("{{FRAME_STYLE}}", frame_style)
         .replace("{{PROMO_BRAND_BLOCK}}", brand_block)
         .replace("{{TITLE_HTML}}", title)
         .replace("{{SUBTITLE_HTML}}", subtitle)
         .replace("{{CTA}}", cta)
     )
+
+
+def _background_style(slide: dict, bg_url: str, default_color: str) -> str:
+    mode = slide.get("background_mode")
+    if mode == "solid_black":
+        return "background-color: #000000;"
+    if bg_url:
+        return (
+            f"background-color: {default_color};"
+            f"background-image: url('{bg_url}');"
+            "background-size: cover;"
+            "background-position: center;"
+        )
+    return f"background-color: {default_color};"
+
+
+def _frame_style(slide: dict, bg_url: str) -> str:
+    mode = slide.get("background_mode")
+    if mode == "solid_black":
+        return "background-color:#000000;"
+    if bg_url:
+        return f'background:url("{bg_url}") center bottom/cover no-repeat;'
+    return "background:#f0ece5;"
 
 
 def _file_to_data_url(image_path: str) -> str:
